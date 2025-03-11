@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Hedge Fund</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>AI Hedge Fund</h1>
+            <h2>Intelligent Stock Analysis & Trading Decisions</h2>
+        </header>
+
+        <div class="card">
+            <h3>Analysis Parameters</h3>
+            <div class="form-group">
+                <label for="tickers">Stock Tickers (comma-separated)</label>
+                <input type="text" id="tickers" placeholder="e.g., AAPL,MSFT,NVDA" value="AAPL,MSFT,NVDA">
+            </div>
+
+            <div class="form-group">
+                <label>Select AI Analysts</label>
+                <div class="checkbox-group" id="analysts-container">
+                    {% for analyst in analysts %}
+                    <div class="checkbox-item" data-id="{{ analyst.id }}">
+                        <input type="checkbox" id="analyst-{{ analyst.id }}" value="{{ analyst.id }}">
+                        <label for="analyst-{{ analyst.id }}">{{ analyst.name }}</label>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="model">Select LLM Model</label>
+                <select id="model">
+                    {% for model in models %}
+                    <option value="{{ model.id }}" data-provider="{{ model.provider }}">{{ model.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <button id="analyze-btn" class="btn">Analyze Stocks</button>
+        </div>
+
+        <div class="progress-container" id="progress-container">
+            <h3>Analysis Progress</h3>
+            <div id="progress-items"></div>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="loading-spinner"></div>
+            <p>Analyzing stocks... This may take a few minutes.</p>
+        </div>
+
+        <div class="results" id="results">
+            <!-- Results will be populated here -->
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Select the first analyst by default (Warren Buffett)
+            const defaultAnalyst = document.querySelector('.checkbox-item[data-id="warren_buffett"]');
+            if (defaultAnalyst) {
+                defaultAnalyst.classList.add('selected');
+                defaultAnalyst.querySelector('input').checked = true;
+            }
+
+            // Make checkbox items clickable
+            document.querySelectorAll('.checkbox-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    const checkbox = this.querySelector('input[type="checkbox"]');
+                    checkbox.checked = !checkbox.checked;
+                    this.classList.toggle('selected', checkbox.checked);
+                });
+            });
+
+            // Handle analyze button click
+            document.getElementById('analyze-btn').addEventListener('click', function() {
+                // 停止之前的模拟（如果有）
+                if (window.stopProgressSimulation) {
+                    window.stopProgressSimulation();
+                    window.stopProgressSimulation = null;
+                }
+                
+                const tickersInput = document.getElementById('tickers').value.trim();
+                if (!tickersInput) {
+                    alert('请输入至少一个股票代码');
+                    return;
+                }
+
+                const selectedAnalysts = Array.from(
+                    document.querySelectorAll('.checkbox-item input:checked')
+                ).map(input => input.value);
+
+                if (selectedAnalysts.length === 0) {
+                    alert('请选择至少一个分析师');
+                    return;
+                }
+
+                const modelSelect = document.getElementById('model');
+                const modelOption = modelSelect.options[modelSelect.selectedIndex];
+                const model = modelSelect.value;
+                const provider = modelOption.dataset.provider;
+
+                // Show loading and hide results
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('results').innerHTML = '';
+                
+                // Setup progress tracking
+                setupProgressTracking(selectedAnalysts, tickersInput.split(','));
+
+                // Make API request
+                fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        tickers: tickersInput,
+                        analysts: selectedAnalysts,
+                        model: model,
+                        provider: provider
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('loading').style.display = 'none';
+                    
+                    if (data.success) {
+                        displayResults(data.result);
+                    } else {
+                        displayError('分析过程中发生错误: ' + data.error);
+                        console.error('API Error:', data.error);
+                    }
+                    
+                    // Complete all progress items
+                    completeAllProgressItems();
+                })
+                .catch(error => {
+                    document.getElementById('loading').style.display = 'none';
+                    displayError('请求过程中发生错误: ' + error.message);
+                    console.error('Fetch Error:', error);
+                    
+                    // Mark all progress items as error
+                    errorAllProgressItems();
+                });
+            });
+        });
+
+        function setupProgressTracking(analysts, tickers) {
+            const progressContainer = document.getElementById('progress-container');
+            const progressItems = document.getElementById('progress-items');
+            
+            progressItems.innerHTML = '';
+            progressContainer.style.display = 'block';
+            
+            // Add analyst progress items for each ticker
+            analysts.forEach(analyst => {
+                tickers.forEach(ticker => {
+                    try {
+                        const analystElement = document.querySelector(`.checkbox-item[data-id="${analyst}"] label`);
+                        if (analystElement) {
+                            const analystName = analystElement.textContent;
+                            addProgressItem(`${analystName} [${ticker.trim()}]`, 'pending');
+                        }
+                    } catch (error) {
+                        console.error(`Error adding progress item for analyst ${analyst}:`, error);
+                    }
+                });
+            });
+            
+            // Add risk management and portfolio management items
+            tickers.forEach(ticker => {
+                addProgressItem(`Risk Management [${ticker.trim()}]`, 'pending');
+                addProgressItem(`Portfolio Management[${ticker.trim()}]`, 'pending');
+            });
+            
+            // Start simulating progress
+            const stopSimulation = simulateProgress(analysts, tickers);
+            
+            // Store the stop function so we can call it later
+            window.stopProgressSimulation = stopSimulation;
+            
+            return stopSimulation;
+        }
+        
+        function addProgressItem(label, status) {
+            const progressItems = document.getElementById('progress-items');
+            const item = document.createElement('div');
+            item.className = 'progress-item';
+            item.innerHTML = `
+                <div class="progress-label">${label}</div>
+                <div class="progress-status status-${status}" data-label="${label}">
+                    ${getStatusText(status)}
+                </div>
+            `;
+            progressItems.appendChild(item);
+        }
+        
+        function getStatusText(status) {
+            switch(status) {
+                case 'pending': return 'Pending...';
+                case 'in-progress': return 'In Progress...';
+                case 'complete': return 'Done';
+                case 'error': return 'Error';
+                default: return '';
+            }
+        }
+        
+        function updateProgressItem(label, status) {
+            const statusElement = document.querySelector(`.progress-status[data-label="${label}"]`);
+            if (statusElement) {
+                statusElement.className = `progress-status status-${status}`;
+                statusElement.textContent = getStatusText(status);
+            }
+        }
+        
+        function simulateProgress(analysts, tickers) {
+            // This is a simplified simulation of progress
+            // In a real implementation, you would use WebSockets or Server-Sent Events
+            // to get real-time progress updates from the server
+            
+            let currentAnalystIndex = 0;
+            let currentTickerIndex = 0;
+            let isSimulating = true;
+            
+            const simulateNext = () => {
+                if (!isSimulating) return;
+                
+                if (currentAnalystIndex >= analysts.length) {
+                    // Move to risk management and portfolio management
+                    if (currentTickerIndex < tickers.length) {
+                        const ticker = tickers[currentTickerIndex].trim();
+                        
+                        // Risk management
+                        updateProgressItem(`Risk Management [${ticker}]`, 'in-progress');
+                        setTimeout(() => {
+                            if (!isSimulating) return;
+                            updateProgressItem(`Risk Management [${ticker}]`, 'complete');
+                            
+                            // Portfolio management
+                            updateProgressItem(`Portfolio Management[${ticker}]`, 'in-progress');
+                            setTimeout(() => {
+                                if (!isSimulating) return;
+                                updateProgressItem(`Portfolio Management[${ticker}]`, 'complete');
+                                
+                                // Move to next ticker
+                                currentTickerIndex++;
+                                if (currentTickerIndex < tickers.length) {
+                                    simulateNext();
+                                }
+                            }, 1000);
+                        }, 1000);
+                    }
+                    return;
+                }
+                
+                try {
+                    const analyst = analysts[currentAnalystIndex];
+                    const ticker = tickers[currentTickerIndex].trim();
+                    const analystElement = document.querySelector(`.checkbox-item[data-id="${analyst}"] label`);
+                    
+                    if (!analystElement) {
+                        console.error(`Could not find analyst element for ${analyst}`);
+                        currentAnalystIndex++;
+                        simulateNext();
+                        return;
+                    }
+                    
+                    const analystName = analystElement.textContent;
+                    
+                    updateProgressItem(`${analystName} [${ticker}]`, 'in-progress');
+                    
+                    // Simulate analysis time (1-3 seconds)
+                    const analysisTime = 1000 + Math.random() * 2000;
+                    setTimeout(() => {
+                        if (!isSimulating) return;
+                        updateProgressItem(`${analystName} [${ticker}]`, 'complete');
+                        
+                        // Move to next analyst or ticker
+                        currentAnalystIndex++;
+                        if (currentAnalystIndex >= analysts.length) {
+                            currentAnalystIndex = 0;
+                            simulateNext(); // Move to risk management
+                        } else {
+                            simulateNext();
+                        }
+                    }, analysisTime);
+                } catch (error) {
+                    console.error('Error in simulateProgress:', error);
+                    currentAnalystIndex++;
+                    simulateNext();
+                }
+            };
+            
+            // Start simulation
+            simulateNext();
+            
+            // Return a function to stop the simulation
+            return function stopSimulation() {
+                isSimulating = false;
+            };
+        }
+        
+        function completeAllProgressItems() {
+            // Stop the simulation if it's running
+            if (window.stopProgressSimulation) {
+                window.stopProgressSimulation();
+                window.stopProgressSimulation = null;
+            }
+            
+            document.querySelectorAll('.progress-status').forEach(item => {
+                if (!item.classList.contains('status-complete')) {
+                    item.className = 'progress-status status-complete';
+                    item.textContent = getStatusText('complete');
+                }
+            });
+        }
+        
+        function errorAllProgressItems() {
+            // Stop the simulation if it's running
+            if (window.stopProgressSimulation) {
+                window.stopProgressSimulation();
+                window.stopProgressSimulation = null;
+            }
+            
+            document.querySelectorAll('.progress-status').forEach(item => {
+                if (!item.classList.contains('status-complete')) {
+                    item.className = 'progress-status status-error';
+                    item.textContent = getStatusText('error');
+                }
+            });
+        }
+
+        function displayResults(result) {
+            const resultsContainer = document.getElementById('results');
+            resultsContainer.innerHTML = '';
+            
+            if (!result) {
+                displayError('没有收到分析结果');
+                return;
+            }
+            
+            const decisions = result.decisions || {};
+            const analystSignals = result.analyst_signals || {};
+            
+            if (Object.keys(decisions).length === 0) {
+                displayError('没有可用的交易决策');
+                return;
+            }
+            
+            // Display results for each ticker
+            for (const ticker in decisions) {
+                const decision = decisions[ticker] || {};
+                
+                const tickerCard = document.createElement('div');
+                tickerCard.className = 'card ticker-card';
+                
+                // Ticker header
+                const tickerHeader = document.createElement('div');
+                tickerHeader.className = 'ticker-header';
+                tickerHeader.textContent = `${ticker} 分析结果`;
+                tickerCard.appendChild(tickerHeader);
+                
+                const tickerBody = document.createElement('div');
+                tickerBody.className = 'ticker-body';
+                
+                // Analyst signals table
+                const signalsTable = document.createElement('table');
+                signalsTable.className = 'signal-table';
+                signalsTable.innerHTML = `
+                    <thead>
+                        <tr>
+                            <th>分析师</th>
+                            <th>信号</th>
+                            <th>置信度</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                `;
+                
+                const signalsTableBody = signalsTable.querySelector('tbody');
+                
+                // Add signals from each analyst
+                for (const agent in analystSignals) {
+                    if (ticker in analystSignals[agent]) {
+                        try {
+                            const signal = analystSignals[agent][ticker] || {};
+                            const agentName = agent.replace('_agent', '').replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+                            
+                            const signalType = signal.signal ? signal.signal.toUpperCase() : '';
+                            const signalClass = signalType === 'BULLISH' ? 'bullish' : 
+                                               signalType === 'BEARISH' ? 'bearish' : 
+                                               signalType === 'NEUTRAL' ? 'neutral' : '';
+                            
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td>${agentName}</td>
+                                <td class="${signalClass}">${signalType}</td>
+                                <td>${signal.confidence ? signal.confidence + '%' : 'None%'}</td>
+                            `;
+                            signalsTableBody.appendChild(row);
+                        } catch (error) {
+                            console.error(`Error displaying signal for ${agent}:`, error);
+                        }
+                    }
+                }
+                
+                tickerBody.appendChild(signalsTable);
+                
+                // Trading decision table
+                const decisionTable = document.createElement('table');
+                decisionTable.className = 'decision-table';
+                
+                const action = decision.action ? decision.action.toUpperCase() : '';
+                const actionClass = action === 'BUY' || action === 'COVER' ? 'bullish' : 
+                                   action === 'SELL' || action === 'SHORT' ? 'bearish' : 
+                                   action === 'HOLD' ? 'neutral' : '';
+                
+                decisionTable.innerHTML = `
+                    <thead>
+                        <tr>
+                            <th>操作</th>
+                            <th>数量</th>
+                            <th>置信度</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="${actionClass}">${action}</td>
+                            <td>${decision.quantity || 0}</td>
+                            <td>${decision.confidence || 0}%</td>
+                        </tr>
+                    </tbody>
+                `;
+                
+                tickerBody.appendChild(decisionTable);
+                
+                // Reasoning
+                if (decision.reasoning) {
+                    const reasoning = document.createElement('div');
+                    reasoning.className = 'reasoning';
+                    reasoning.innerHTML = `<strong>理由:</strong> ${decision.reasoning}`;
+                    tickerBody.appendChild(reasoning);
+                }
+                
+                tickerCard.appendChild(tickerBody);
+                resultsContainer.appendChild(tickerCard);
+            }
+            
+            // Portfolio summary
+            const portfolioSummary = document.createElement('div');
+            portfolioSummary.className = 'card portfolio-summary';
+            
+            const portfolioHeader = document.createElement('h3');
+            portfolioHeader.textContent = '投资组合摘要';
+            portfolioSummary.appendChild(portfolioHeader);
+            
+            const portfolioTable = document.createElement('table');
+            portfolioTable.className = 'portfolio-table';
+            portfolioTable.innerHTML = `
+                <thead>
+                    <tr>
+                        <th>股票代码</th>
+                        <th>操作</th>
+                        <th>数量</th>
+                        <th>置信度</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            `;
+            
+            const portfolioTableBody = portfolioTable.querySelector('tbody');
+            
+            for (const ticker in decisions) {
+                try {
+                    const decision = decisions[ticker] || {};
+                    const action = decision.action ? decision.action.toUpperCase() : '';
+                    const actionClass = action === 'BUY' || action === 'COVER' ? 'bullish' : 
+                                       action === 'SELL' || action === 'SHORT' ? 'bearish' : 
+                                       action === 'HOLD' ? 'neutral' : '';
+                    
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${ticker}</td>
+                        <td class="${actionClass}">${action}</td>
+                        <td>${decision.quantity || 0}</td>
+                        <td>${decision.confidence || 0}%</td>
+                    `;
+                    portfolioTableBody.appendChild(row);
+                } catch (error) {
+                    console.error(`Error displaying portfolio row for ${ticker}:`, error);
+                }
+            }
+            
+            portfolioSummary.appendChild(portfolioTable);
+            resultsContainer.appendChild(portfolioSummary);
+        }
+
+        function displayError(message) {
+            const resultsContainer = document.getElementById('results');
+            resultsContainer.innerHTML = `
+                <div class="card">
+                    <h3 style="color: var(--apple-red);">错误</h3>
+                    <p>${message}</p>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html> 

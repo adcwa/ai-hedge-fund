@@ -17,7 +17,7 @@ This system employs several agents working together:
 11. Risk Manager - Calculates risk metrics and sets position limits
 12. Portfolio Manager - Makes final trading decisions and generates orders
 
-<img width="1020" alt="Screenshot 2025-03-08 at 4 45 22 PM" src="https://github.com/user-attachments/assets/d8ab891e-a083-4fed-b514-ccc9322a3e57" />
+<img width="1020" alt="Screenshot 2025-03-08 at 4 45 22 PM" src="https://github.com/user-attachments/assets/d8ab891e-a083-4fed-b514-ccc9322a3e57" />
 
 **Note**: the system simulates trading decisions, it does not actually trade.
 
@@ -40,6 +40,7 @@ By using this software, you agree to use it solely for learning purposes.
 - [Usage](#usage)
   - [Running the Hedge Fund](#running-the-hedge-fund)
   - [Running the Backtester](#running-the-backtester)
+  - [Using the Web Interface](#using-the-web-interface)
 - [Project Structure](#project-structure)
 - [Contributing](#contributing)
 - [Feature Requests](#feature-requests)
@@ -98,7 +99,7 @@ poetry run python src/main.py --ticker AAPL,MSFT,NVDA
 ```
 
 **Example Output:**
-<img width="992" alt="Screenshot 2025-01-06 at 5 50 17 PM" src="https://github.com/user-attachments/assets/e8ca04bf-9989-4a7d-a8b4-34e04666663b" />
+<img width="992" alt="Screenshot 2025-01-06 at 5 50 17 PM" src="https://github.com/user-attachments/assets/e8ca04bf-9989-4a7d-a8b4-34e04666663b" />
 
 You can also specify a `--show-reasoning` flag to print the reasoning of each agent to the console.
 
@@ -118,13 +119,38 @@ poetry run python src/backtester.py --ticker AAPL,MSFT,NVDA
 ```
 
 **Example Output:**
-<img width="941" alt="Screenshot 2025-01-06 at 5 47 52 PM" src="https://github.com/user-attachments/assets/00e794ea-8628-44e6-9a84-8f8a31ad3b47" />
+<img width="941" alt="Screenshot 2025-01-06 at 5 47 52 PM" src="https://github.com/user-attachments/assets/00e794ea-8628-44e6-9a84-8f8a31ad3b47" />
 
 You can optionally specify the start and end dates to backtest over a specific time period.
 
 ```bash
 poetry run python src/backtester.py --ticker AAPL,MSFT,NVDA --start-date 2024-01-01 --end-date 2024-03-01
 ```
+
+### Using the Web Interface
+
+The AI Hedge Fund now includes a web interface with Apple-inspired UI styling for a more user-friendly experience.
+
+To run the web interface:
+
+```bash
+# Install Flask if not already installed
+poetry add flask
+
+# Run the web application
+poetry run python web/app.py
+```
+
+Then open your browser and navigate to http://localhost:5000
+
+The web interface provides:
+- Input for stock tickers
+- Selection of AI analysts
+- Choice of LLM models
+- Real-time progress tracking
+- Detailed results display with analyst signals, trading decisions, and reasoning
+
+<img width="1000" alt="AI Hedge Fund Web Interface" src="https://github.com/user-attachments/assets/web-interface-screenshot.png" />
 
 ## Project Structure 
 ```
@@ -142,7 +168,13 @@ ai-hedge-fund/
 │   ├── tools/                    # Agent tools
 │   │   ├── api.py                # API tools
 │   ├── backtester.py             # Backtesting tools
-│   ├── main.py # Main entry point
+│   ├── main.py                   # Main entry point
+├── web/                          # Web interface
+│   ├── app.py                    # Flask application
+│   ├── static/                   # Static assets
+│   │   ├── css/                  # CSS styles
+│   │   ├── js/                   # JavaScript files
+│   ├── templates/                # HTML templates
 ├── pyproject.toml
 ├── ...
 ```

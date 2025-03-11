@@ -11,6 +11,7 @@ from typing import Tuple
 
 class ModelProvider(str, Enum):
     """Enum for supported LLM providers"""
+    ARK = "ARK"
     ANTHROPIC = "Anthropic"
     DEEPSEEK = "DeepSeek"
     GEMINI = "Gemini"
@@ -44,6 +45,11 @@ class LLMModel(BaseModel):
 
 # Define available models
 AVAILABLE_MODELS = [
+    LLMModel(
+        display_name="[ark] doubao-1-5-pro-32k-250115",
+        model_name="doubao-1-5-pro-32k-250115",
+        provider=ModelProvider.ARK
+    ),
     LLMModel(
         display_name="[anthropic] claude-3.5-haiku",
         model_name="claude-3-5-haiku-latest",
@@ -114,7 +120,15 @@ def get_model_info(model_name: str) -> LLMModel | None:
     return next((model for model in AVAILABLE_MODELS if model.model_name == model_name), None)
 
 def get_model(model_name: str, model_provider: ModelProvider) -> ChatOpenAI | ChatGroq | None:
-    if model_provider == ModelProvider.GROQ:
+    if model_provider == ModelProvider.ARK:
+        api_key = os.getenv("ARK_API_KEY")
+        base_url = os.getenv("ARK_BASE_URL")
+        if not api_key:
+            # Print error to console
+            print(f"API Key Error: Please make sure ARK_API_KEY is set in your .env file.")
+            raise ValueError("ark API key not found.  Please make sure ARK_API_KEY is set in your .env file.")
+        return ChatOpenAI(model=model_name, api_key=api_key,base_url=base_url)
+    elif model_provider == ModelProvider.GROQ:
         api_key = os.getenv("GROQ_API_KEY")
         if not api_key:
             # Print error to console
