@@ -1,0 +1,20 @@
+name = "ai-hedge-fund"
+main = "worker.js"
+account_id = "dc0ca2832eb28ea4fb493c42d053eb8a" # Your Cloudflare account ID
+workers_dev = true
+compatibility_date = "2023-10-30"
+
+[site]
+bucket = "./web/static"
+
+[build]
+command = "pip install -r requirements.txt"
+
+[env.production]
+route = "ai-hedge-fund.adcwangfeng.workers.dev/*"
+zone_id = "" # Your Cloudflare zone ID if you have a custom domain
+
+# KV Namespace for storing data
+[[kv_namespaces]]
+binding = "AI_HEDGE_FUND_KV"
+id = "485aff9562194b67b8f3a493d620a517" 
