@@ -264,36 +264,77 @@ select:focus {
 .progress-container {
   margin-top: 20px;
   display: none;
+  background-color: #fff;
+  border-radius: var(--apple-radius);
+  box-shadow: var(--apple-shadow);
+  padding: 20px;
+}
+
+.progress-container h3 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  color: var(--apple-black);
 }
 
 .progress-item {
   display: flex;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 15px;
+  padding: 10px;
+  border-radius: var(--apple-radius);
+  background-color: var(--apple-gray);
+  transition: background-color 0.3s;
+}
+
+.progress-item:last-child {
+  margin-bottom: 0;
 }
 
 .progress-label {
-  width: 200px;
+  flex: 1;
   font-weight: 500;
+  margin-right: 10px;
 }
 
 .progress-status {
-  margin-left: 10px;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  min-width: 100px;
+  text-align: center;
 }
 
 .status-pending {
+  background-color: #f2f2f7;
   color: var(--apple-dark-gray);
 }
 
 .status-in-progress {
+  background-color: rgba(0, 113, 227, 0.1);
   color: var(--apple-blue);
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.6;
+  }
 }
 
 .status-complete {
+  background-color: rgba(52, 199, 89, 0.1);
   color: var(--apple-green);
 }
 
 .status-error {
+  background-color: rgba(255, 59, 48, 0.1);
   color: var(--apple-red);
 }
 

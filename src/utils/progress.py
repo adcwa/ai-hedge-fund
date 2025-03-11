@@ -3,7 +3,7 @@ from rich.live import Live
 from rich.table import Table
 from rich.style import Style
 from rich.text import Text
-from typing import Dict, Optional
+from typing import Dict, Optional, Callable
 from datetime import datetime
 
 console = Console()
@@ -17,6 +17,11 @@ class AgentProgress:
         self.table = Table(show_header=False, box=None, padding=(0, 1))
         self.live = Live(self.table, console=console, refresh_per_second=4)
         self.started = False
+        self.callback = None
+
+    def set_callback(self, callback: Callable):
+        """Set a callback function to be called when status is updated."""
+        self.callback = callback
 
     def start(self):
         """Start the progress display."""
@@ -30,15 +35,22 @@ class AgentProgress:
             self.live.stop()
             self.started = False
 
-    def update_status(self, agent_name: str, ticker: Optional[str] = None, status: str = ""):
+    def update_status(self, agent_name: str, ticker: Optional[str] = None, status: str = "", message: str = ""):
         """Update the status of an agent."""
         if agent_name not in self.agent_status:
-            self.agent_status[agent_name] = {"status": "", "ticker": None}
+            self.agent_status[agent_name] = {"status": "", "ticker": None, "message": ""}
 
         if ticker:
             self.agent_status[agent_name]["ticker"] = ticker
         if status:
             self.agent_status[agent_name]["status"] = status
+        if message:
+            self.agent_status[agent_name]["message"] = message
+
+        # 调用回调函数（如果设置了）
+        if self.callback:
+            agent_display = agent_name.replace("_agent", "").replace("_", " ").title()
+            self.callback(agent_display, ticker, status, message)
 
         self._refresh_display()
 
@@ -60,6 +72,7 @@ class AgentProgress:
         for agent_name, info in sorted(self.agent_status.items(), key=sort_key):
             status = info["status"]
             ticker = info["ticker"]
+            message = info.get("message", "")
 
             # Create the status text with appropriate styling
             if status.lower() == "done":
@@ -79,7 +92,11 @@ class AgentProgress:
 
             if ticker:
                 status_text.append(f"[{ticker}] ", style=Style(color="cyan"))
+            
             status_text.append(status, style=style)
+            
+            if message:
+                status_text.append(f" - {message}", style=Style(color="white"))
 
             self.table.add_row(status_text)
 
