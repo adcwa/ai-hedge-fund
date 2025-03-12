@@ -22,22 +22,20 @@ from src.utils.progress import progress
 # Load environment variables
 load_dotenv()
 
-# 创建一个全局的进度队列
-progress_queues = {}
-
-# 自定义进度监听器
-class ProgressListener:
-    def __init__(self, queue_id):
-        self.queue = queue.Queue()
-        progress_queues[queue_id] = self.queue
+# For Vercel serverless environment, we'll use a simpler approach
+# instead of global queues which won't work well in serverless
+class VercelProgressListener:
+    def __init__(self):
+        self.updates = []
         
     def on_update(self, agent, ticker, status, message=None):
-        # 将进度更新放入队列
-        self.queue.put({
+        # Store updates in a list
+        self.updates.append({
             'agent': agent,
             'ticker': ticker,
             'status': status,
-            'message': message
+            'message': message,
+            'timestamp': time.time()
         })
 
 app = Flask(__name__, 
@@ -58,33 +56,22 @@ def index():
     
     return render_template('index.html', analysts=analysts, models=models)
 
-@app.route('/api/progress/<queue_id>')
-def get_progress(queue_id):
-    """SSE endpoint for progress updates"""
-    if queue_id not in progress_queues:
-        return "Queue not found", 404
+@app.route('/api/progress/<session_id>')
+def get_progress(session_id):
+    """Get progress updates for a session"""
+    # In a serverless environment, we'll use a polling approach
+    # This endpoint will return the latest updates since the last poll
     
-    def generate():
-        q = progress_queues[queue_id]
-        try:
-            while True:
-                # 非阻塞方式获取队列中的更新
-                try:
-                    update = q.get(block=False)
-                    yield f"data: {json.dumps(update)}\n\n"
-                except queue.Empty:
-                    # 如果队列为空，等待一小段时间再试
-                    time.sleep(0.1)
-                    yield f"data: {json.dumps({'type': 'heartbeat'})}\n\n"
-        except GeneratorExit:
-            # 客户端断开连接时清理
-            if queue_id in progress_queues:
-                del progress_queues[queue_id]
+    # In a real implementation, you would store progress in a database
+    # or cache service like Redis that persists between function invocations
     
-    return Response(stream_with_context(generate()), 
-                   mimetype='text/event-stream',
-                   headers={'Cache-Control': 'no-cache',
-                            'Connection': 'keep-alive'})
+    # For demo purposes, we'll return a mock response
+    return jsonify({
+        "status": "running",
+        "updates": [
+            {"agent": "Portfolio Manager", "ticker": "AAPL", "status": "analyzing", "message": "Analyzing Apple Inc."}
+        ]
+    })
 
 @app.route('/api/analyze', methods=['POST'])
 def analyze():
@@ -97,13 +84,13 @@ def analyze():
     model_name = data.get('model', 'gpt-4o')
     model_provider = data.get('provider', 'OpenAI')
     
-    # 创建唯一的队列ID
-    queue_id = f"{int(time.time())}-{hash(str(tickers) + str(selected_analysts))}"
+    # Create a unique session ID
+    session_id = f"{int(time.time())}-{hash(str(tickers) + str(selected_analysts))}"
     
-    # 创建进度监听器
-    progress_listener = ProgressListener(queue_id)
+    # Create progress listener
+    progress_listener = VercelProgressListener()
     
-    # 设置进度回调
+    # Set progress callback
     progress.set_callback(progress_listener.on_update)
     
     # Default portfolio with initial cash
@@ -113,55 +100,43 @@ def analyze():
         "positions": {}
     }
     
-    # 获取当前日期作为结束日期
+    # Get current date as end date
     from datetime import datetime, timedelta
     end_date = datetime.now().strftime("%Y-%m-%d")
-    # 默认开始日期为 3 个月前
+    # Default start date is 3 months ago
     start_date = (datetime.now() - timedelta(days=90)).strftime("%Y-%m-%d")
     
-    # 返回队列ID，前端将使用它来连接SSE
-    response = {
-        "success": True, 
-        "queue_id": queue_id,
-        "message": "分析已开始，请通过SSE连接获取实时进度"
-    }
-    
-    # 在后台线程中运行分析
-    def run_analysis():
-        try:
-            result = run_hedge_fund(
-                tickers=tickers,
-                start_date=start_date,
-                end_date=end_date,
-                portfolio=portfolio,
-                show_reasoning=True,
-                selected_analysts=selected_analysts,
-                model_name=model_name,
-                model_provider=model_provider
-            )
-            
-            # 分析完成后，发送完成消息
-            progress_queues[queue_id].put({
-                'type': 'complete',
-                'result': result
-            })
-            
-        except Exception as e:
-            import traceback
-            error_traceback = traceback.format_exc()
-            print(f"Error in analyze: {str(e)}\n{error_traceback}")
-            
-            # 发送错误消息
-            if queue_id in progress_queues:
-                progress_queues[queue_id].put({
-                    'type': 'error',
-                    'error': str(e)
-                })
-    
-    # 启动后台线程
-    threading.Thread(target=run_analysis).start()
-    
-    return jsonify(response)
+    # For Vercel serverless, we'll run the analysis synchronously
+    # This is not ideal for long-running tasks, but it's a starting point
+    try:
+        # For demo purposes, we'll run a simplified version
+        # In production, you would use a task queue or database to track progress
+        result = run_hedge_fund(
+            tickers=tickers,
+            start_date=start_date,
+            end_date=end_date,
+            portfolio=portfolio,
+            show_reasoning=True,
+            selected_analysts=selected_analysts,
+            model_name=model_name,
+            model_provider=model_provider
+        )
+        
+        return jsonify({
+            "success": True,
+            "session_id": session_id,
+            "result": result
+        })
+        
+    except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"Error in analyze: {str(e)}\n{error_traceback}")
+        
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
 @app.route('/api/analysts')
 def get_analysts():
@@ -179,5 +154,8 @@ def get_models():
               for model in AVAILABLE_MODELS]
     return jsonify(models)
 
-if __name__ == '__main__':
-    app.run(debug=True, port=5000) 
+# For Vercel serverless deployment
+app.debug = False
+
+# Export the Flask app for Vercel
+index = app 

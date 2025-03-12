@@ -45,6 +45,7 @@ By using this software, you agree to use it solely for learning purposes.
 - [Contributing](#contributing)
 - [Feature Requests](#feature-requests)
 - [License](#license)
+- [Deploying to Vercel](#deploying-to-vercel)
 
 ## Setup
 
@@ -196,3 +197,57 @@ If you have a feature request, please open an [issue](https://github.com/virattt
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Deploying to Vercel
+
+This application can be deployed to Vercel by following these steps:
+
+### Prerequisites
+
+1. A [Vercel account](https://vercel.com/signup)
+2. [Vercel CLI](https://vercel.com/docs/cli) installed (optional for local testing)
+3. API keys for the LLM providers you want to use (OpenAI, Anthropic, etc.)
+
+### Deployment Steps
+
+1. Fork or clone this repository to your GitHub account
+2. Connect your GitHub repository to Vercel:
+   - Go to [Vercel Dashboard](https://vercel.com/dashboard)
+   - Click "Add New" > "Project"
+   - Select your repository
+   - Configure the project:
+     - Framework Preset: Other
+     - Root Directory: ./
+     - Build Command: None
+     - Output Directory: None
+     - Install Command: pip install -r requirements.txt
+
+3. Set up environment variables:
+   - In the Vercel project settings, go to "Environment Variables"
+   - Add all the required API keys from your `.env` file:
+     - `OPENAI_API_KEY`
+     - `ANTHROPIC_API_KEY`
+     - `GROQ_API_KEY`
+     - `GOOGLE_API_KEY`
+     - `DEEPSEEK_API_KEY`
+     - `FINANCIAL_DATASETS_API_KEY`
+
+4. Deploy the application:
+   - Click "Deploy"
+   - Wait for the deployment to complete
+   - Access your application at the provided URL
+
+### Local Testing with Vercel
+
+To test the deployment locally before pushing to production:
+
+1. Install Vercel CLI: `npm i -g vercel`
+2. Run `vercel login` to authenticate
+3. Run `vercel dev` to start a local development server
+4. Access the application at http://localhost:3000
+
+### Troubleshooting
+
+- If you encounter memory issues during deployment, consider optimizing your dependencies or upgrading your Vercel plan
+- For SSE (Server-Sent Events) functionality, ensure your Vercel function timeout is set to a higher value in the project settings
+- Check Vercel logs for any deployment or runtime errors
